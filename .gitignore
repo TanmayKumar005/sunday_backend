@@ -1,0 +1,73 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Pyright
+.pyright/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# SQLite (if ever used)
+*.db
+*.sqlite3
+
+# Alembic
+alembic/versions/__pycache__/
+
+# Temporary Files
+*.tmp
+*.temp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Coverage Reports
+.coverage.*
+coverage.xml
+
+# Local configuration
+*.local
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Windows
+Desktop.ini
