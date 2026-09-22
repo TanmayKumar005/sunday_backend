@@ -22,7 +22,9 @@ def create_content(db: Session, content: ContentCreate):
 
 
 def get_content(db: Session, unit_id: int):
-    return db.query(Content).filter(Content.unit_id == unit_id).first()
+    return db.query(Content).filter(
+        Content.unit_id == unit_id
+    ).first()
 
 
 def get_next_content(db: Session, unit_id: int):
@@ -40,4 +42,6 @@ def get_next_content(db: Session, unit_id: int):
 
 
 def get_all_content(db: Session):
-    return db.query(Content).order_by(Content.order.asc()).all()
+    return db.query(Content).order_by(
+        Content.order.asc()
+    ).all()
