@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class StartAssessmentRequest(BaseModel):
@@ -11,6 +13,11 @@ class SubmitAnswerRequest(BaseModel):
     question_id: int
 
     answer: str
+
+    response_time_seconds: Optional[float] = Field(
+        default=None,
+        ge=0
+    )
 
 
 class AssessmentStartResponse(BaseModel):

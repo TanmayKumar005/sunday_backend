@@ -8,6 +8,8 @@ import app.models
 from app.routes.learner import router as learner_router
 from app.routes.question import router as question_router
 from app.routes.assessment import router as assessment_router
+from app.routes.content import router as content_router
+from app.routes.adaptation import router as adaptation_router
 
 
 app = FastAPI(
@@ -34,6 +36,14 @@ app.include_router(
 
 app.include_router(
     assessment_router
+)
+
+app.include_router(
+    content_router
+)
+
+app.include_router(
+    adaptation_router
 )
 
 

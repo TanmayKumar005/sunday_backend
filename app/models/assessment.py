@@ -94,3 +94,27 @@ class AssessmentAnswer(Base):
         Integer,
         default=0
     )
+
+    # Stage 2 adaptation signals
+    response_time_seconds = Column(
+        Float,
+        nullable=True
+    )
+
+    attempts = Column(
+        Integer,
+        default=1,
+        server_default="1"
+    )
+
+    wrong_attempts = Column(
+        Integer,
+        default=0,
+        server_default="0"
+    )
+
+    scaffold_level = Column(
+        Integer,
+        default=0,
+        server_default="0"
+    )

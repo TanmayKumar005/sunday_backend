@@ -70,7 +70,8 @@ def answer_question(
         db,
         assessment_id,
         request.question_id,
-        request.answer
+        request.answer,
+        request.response_time_seconds
     )
 
     if result is None:

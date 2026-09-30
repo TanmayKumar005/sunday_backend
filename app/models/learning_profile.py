@@ -45,5 +45,5 @@ class LearningProfile(Base):
 
     current_difficulty = Column(
         String(20),
-        default="Easy"
+        default="EASY"
     )

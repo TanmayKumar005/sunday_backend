@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from app.models.assessment import Assessment
@@ -45,7 +47,8 @@ def submit_answer(
     db: Session,
     assessment_id: int,
     question_id: int,
-    answer: str
+    answer: str,
+    response_time_seconds: Optional[float] = None
 ):
 
     assessment = (
@@ -110,13 +113,44 @@ def submit_answer(
             int(is_correct)
         )
 
+        previous_attempts = int(
+            getattr(existing_answer, "attempts") or 1
+        )
+
+        previous_wrong = int(
+            getattr(existing_answer, "wrong_attempts") or 0
+        )
+
+        setattr(
+            existing_answer,
+            "attempts",
+            previous_attempts + 1
+        )
+
+        setattr(
+            existing_answer,
+            "wrong_attempts",
+            previous_wrong + (0 if is_correct else 1)
+        )
+
+        if response_time_seconds is not None:
+            setattr(
+                existing_answer,
+                "response_time_seconds",
+                response_time_seconds
+            )
+
     else:
 
         new_answer = AssessmentAnswer(
             assessment_id=assessment_id,
             question_id=question_id,
             answer=answer,
-            is_correct=int(is_correct)
+            is_correct=int(is_correct),
+            response_time_seconds=response_time_seconds,
+            attempts=1,
+            wrong_attempts=0 if is_correct else 1,
+            scaffold_level=0
         )
 
         db.add(new_answer)
