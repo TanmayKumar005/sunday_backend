@@ -9,6 +9,7 @@ from app.schemas.progress import WeakTopic
 class StartAssessmentRequest(BaseModel):
 
     learner_id: int
+    unit_id: Optional[int] = None
 
 
 class SubmitAnswerRequest(BaseModel):

@@ -9,11 +9,17 @@ from app.models.question import Question
 
 def create_assessment(
     db: Session,
-    learner_id: int
+    learner_id: int,
+    unit_id: Optional[int] = None
 ):
 
+    query = db.query(Question)
+
+    if unit_id is not None:
+        query = query.filter(Question.unit_id == unit_id)
+
     questions = (
-        db.query(Question)
+        query
         .order_by(Question.id)
         .limit(5)
         .all()

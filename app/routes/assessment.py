@@ -42,7 +42,8 @@ def start_assessment(
 
     assessment = create_assessment(
         db,
-        request.learner_id
+        request.learner_id,
+        request.unit_id
     )
 
     if assessment is None:
