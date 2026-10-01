@@ -67,6 +67,12 @@ class AdaptationDecision(BaseModel):
     profile: ProfileSnapshot
 
 
+class NextQuestionResponse(AdaptationDecision):
+    # id of a new one-question assessment holding the recommended question;
+    # answer it with POST /assessments/{next_assessment_id}/answer
+    next_assessment_id: Optional[int] = None
+
+
 class ScaffoldResponse(BaseModel):
     assessment_id: int
     question_id: int

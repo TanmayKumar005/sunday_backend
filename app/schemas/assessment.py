@@ -2,6 +2,9 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.adaptation import ContentBrief
+from app.schemas.progress import WeakTopic
+
 
 class StartAssessmentRequest(BaseModel):
 
@@ -51,3 +54,26 @@ class AssessmentResult(BaseModel):
     accuracy: float
 
     status: str
+
+    # --- post-assessment report (all optional, additive) ---
+    total_questions: Optional[int] = None
+
+    questions_answered: Optional[int] = None
+
+    struggle_level: Optional[str] = None
+
+    struggle_score: Optional[float] = None
+
+    mastery_level: Optional[str] = None
+
+    weak_topics: list[WeakTopic] = []
+
+    recommended_action: Optional[str] = None
+
+    next_difficulty: Optional[str] = None
+
+    recommended_content: Optional[ContentBrief] = None
+
+    reason: Optional[str] = None
+
+    rules_applied: list[str] = []

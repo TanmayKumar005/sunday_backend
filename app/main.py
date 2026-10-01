@@ -10,6 +10,7 @@ from app.routes.question import router as question_router
 from app.routes.assessment import router as assessment_router
 from app.routes.content import router as content_router
 from app.routes.adaptation import router as adaptation_router
+from app.routes.progress import router as progress_router
 
 
 app = FastAPI(
@@ -44,6 +45,10 @@ app.include_router(
 
 app.include_router(
     adaptation_router
+)
+
+app.include_router(
+    progress_router
 )
 
 

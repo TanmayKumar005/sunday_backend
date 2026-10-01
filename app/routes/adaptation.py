@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.schemas.adaptation import (
     AdaptationDecision,
     EvaluateRequest,
+    NextQuestionResponse,
     ScaffoldRequest,
     ScaffoldResponse,
 )
@@ -12,6 +13,7 @@ from app.services.adaptation_service import (
     AdaptationConflict,
     AdaptationNotFound,
     evaluate_answer,
+    next_question_assessment,
     request_scaffold,
 )
 
@@ -34,6 +36,27 @@ def evaluate(
 
     try:
         return evaluate_answer(
+            db, request.assessment_id, request.question_id
+        )
+    except AdaptationNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error))
+    except AdaptationConflict as error:
+        raise HTTPException(status_code=409, detail=str(error))
+
+
+@router.post("/next-question", response_model=NextQuestionResponse)
+def next_question(
+    request: EvaluateRequest,
+    db: Session = Depends(get_db)
+):
+    """Evaluate the last answer and open an assessment for the next question.
+
+    Loop: answer -> /adaptation/next-question -> answer the new
+    assessment's question -> repeat.
+    """
+
+    try:
+        return next_question_assessment(
             db, request.assessment_id, request.question_id
         )
     except AdaptationNotFound as error:

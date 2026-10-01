@@ -1,3 +1,5 @@
+import logging
+from dataclasses import dataclass
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -13,6 +15,8 @@ from app.ai.recommendation import (
     TARGET_CURRENT,
     TARGET_NEXT,
     TARGET_PREREQUISITE,
+    Recommendation,
+    Signals,
     compute_signals,
     recommend,
 )
@@ -33,6 +37,11 @@ from app.services.content_service import (
     get_next_content,
 )
 from app.services.learning_profile_service import create_learning_profile
+from app.services.progress_service import update_topic_progress
+
+logger = logging.getLogger(__name__)
+
+ADAPTIVE_ASSESSMENT_TYPE = "Adaptive"
 
 
 class AdaptationNotFound(Exception):
@@ -161,17 +170,30 @@ def _get_profile(db: Session, learner_id: int):
     return profile
 
 
-def evaluate_answer(
+@dataclass
+class Analysis:
+    """Everything computed for one answered question (no database writes)."""
+
+    assessment: Assessment
+    question: Question
+    answer: AssessmentAnswer
+    learner_id: int
+    signals: Signals
+    decision: Recommendation
+    reason: str
+    unit: Optional[Content]
+    target_unit: Optional[Content]
+    revisit: Optional[Content]
+    next_question: Optional[Question]
+
+
+def analyze_answer(
     db: Session,
     assessment_id: int,
     question_id: int,
     config: AdaptationConfig = DEFAULT_CONFIG,
-) -> dict:
-    """Score struggle for a submitted answer and recommend the next step.
-
-    Also stores the resulting struggle level and next difficulty on the
-    learner's learning profile.
-    """
+) -> Analysis:
+    """Struggle signals + recommendation for a submitted answer. Read-only."""
 
     assessment, question, answer = _load_attempt(
         db, assessment_id, question_id
@@ -231,14 +253,64 @@ def evaluate_answer(
             exclude_question_id=int(question.id),
         )
 
-    profile = _get_profile(db, learner_id)
+    return Analysis(
+        assessment=assessment,
+        question=question,
+        answer=answer,
+        learner_id=learner_id,
+        signals=signals,
+        decision=decision,
+        reason=reason,
+        unit=unit,
+        target_unit=target_unit,
+        revisit=revisit,
+        next_question=next_question,
+    )
+
+
+def evaluate_answer(
+    db: Session,
+    assessment_id: int,
+    question_id: int,
+    config: AdaptationConfig = DEFAULT_CONFIG,
+) -> dict:
+    """Run one turn of the adaptive loop for a submitted answer.
+
+    struggle calculated -> topic progress updated -> learning profile updated
+    -> adaptation decision returned (with next content / question).
+
+    Safe to call repeatedly: progress is recomputed, never incremented.
+    """
+
+    a = analyze_answer(db, assessment_id, question_id, config)
+
+    signals = a.signals
+    decision = a.decision
+
+    # difficulty the learner is now working at IN THIS TOPIC
+    topic_difficulty = (
+        decision.next_difficulty
+        if decision.topic_target == TARGET_CURRENT
+        else signals.difficulty
+    )
+
+    update_topic_progress(
+        db,
+        a.learner_id,
+        int(a.question.unit_id),
+        signals.struggle_score,
+        signals.struggle_level,
+        topic_difficulty,
+    )
+
+    profile = _get_profile(db, a.learner_id)
     profile.struggle_level = signals.struggle_level   # type: ignore
     profile.current_difficulty = decision.next_difficulty   # type: ignore
     db.commit()
 
     return {
         "assessment_id": assessment_id,
-        "learner_id": learner_id,
+        "learner_id": a.learner_id,
         "question_id": question_id,
         "is_correct": signals.is_correct,
         "struggle_score": signals.struggle_score,
@@ -261,19 +333,117 @@ def evaluate_answer(
         "current_difficulty": signals.difficulty,
         "next_difficulty": decision.next_difficulty,
         "suggested_scaffold_level": decision.suggested_scaffold_level,
-        "reason": reason,
+        "reason": a.reason,
         "rules_applied": decision.rules_applied,
-        "recommended_content": _brief(target_unit),
-        "revisit_prerequisite": _brief(revisit),
+        "recommended_content": _brief(a.target_unit),
+        "revisit_prerequisite": _brief(a.revisit),
         "recommended_question": (
-            QuestionResponse.model_validate(next_question)
-            if next_question is not None else None
+            QuestionResponse.model_validate(a.next_question)
+            if a.next_question is not None else None
         ),
         "profile": {
             "struggle_level": str(profile.struggle_level),
             "current_difficulty": str(profile.current_difficulty),
         },
     }
+
+
+def record_answer_outcome(
+    db: Session,
+    assessment_id: int,
+    question_id: int,
+) -> Optional[dict]:
+    """Called by the answer endpoint after an answer is saved.
+
+    Updates progress and the learning profile. A failure here must never
+    lose or reject the learner's answer (already saved), so it is logged and
+    swallowed.
+    """
+
+    try:
+        return evaluate_answer(db, assessment_id, question_id)
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Adaptive update failed for assessment %s question %s",
+            assessment_id,
+            question_id,
+        )
+        return None
+
+
+def _open_adaptive_assessment(
+    db: Session,
+    learner_id: int,
+    question_id: int,
+) -> Assessment:
+    """Reuse or create a one-question Adaptive assessment for a learner."""
+
+    open_ones = (
+        db.query(Assessment)
+        .filter(
+            Assessment.learner_id == learner_id,
+            Assessment.assessment_type == ADAPTIVE_ASSESSMENT_TYPE,
+            Assessment.status == "In Progress",
+        )
+        .order_by(Assessment.id.desc())
+        .limit(20)
+        .all()
+    )
+
+    for existing in open_ones:
+        if list(existing.question_ids or []) != [question_id]:
+            continue
+
+        answered = (
+            db.query(AssessmentAnswer)
+            .filter(AssessmentAnswer.assessment_id == existing.id)
+            .count()
+        )
+
+        if answered == 0:
+            return existing
+
+    created = Assessment(
+        learner_id=learner_id,
+        assessment_type=ADAPTIVE_ASSESSMENT_TYPE,
+        question_ids=[question_id],
+        status="In Progress",
+    )
+
+    db.add(created)
+    db.commit()
+    db.refresh(created)
+
+    return created
+
+
+def next_question_assessment(
+    db: Session,
+    assessment_id: int,
+    question_id: int,
+    config: AdaptationConfig = DEFAULT_CONFIG,
+) -> dict:
+    """Evaluate the last answer AND open an assessment for the next question.
+
+    The learner then answers the recommended question through the normal
+    POST /assessments/{next_assessment_id}/answer endpoint, which closes
+    the adaptive loop.
+    """
+
+    payload = evaluate_answer(db, assessment_id, question_id, config)
+
+    recommended = payload["recommended_question"]
+
+    payload["next_assessment_id"] = None
+
+    if recommended is not None:
+        adaptive = _open_adaptive_assessment(
+            db, int(payload["learner_id"]), int(recommended.id)
+        )
+        payload["next_assessment_id"] = int(adaptive.id)
+
+    return payload
 
 
 def request_scaffold(db: Session, assessment_id: int, question_id: int) -> dict:

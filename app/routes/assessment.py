@@ -14,6 +14,10 @@ from app.schemas.assessment import (
     AssessmentResult
 )
 
+from app.services.adaptation_service import record_answer_outcome
+
+from app.services.post_assessment_service import build_post_assessment
+
 from app.services.assessment_service import (
     create_assessment,
     submit_answer,
@@ -81,6 +85,13 @@ def answer_question(
             detail="Assessment or question not found"
         )
 
+    # adaptive loop: struggle -> progress -> profile (response shape unchanged)
+    record_answer_outcome(
+        db,
+        assessment_id,
+        request.question_id
+    )
+
     return result
 
 
@@ -104,5 +115,9 @@ def get_result(
             status_code=404,
             detail="Assessment not found"
         )
+
+    result.update(
+        build_post_assessment(db, result)
+    )
 
     return result
